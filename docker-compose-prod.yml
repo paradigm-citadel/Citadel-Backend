@@ -1,0 +1,111 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:latest
+    container_name: citadel-postgres
+    env_file: ./src/.env
+    restart: on-failure
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      citadel_net:
+
+  memcached:
+    image: memcached:latest
+    container_name: citadel-memcached
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  gunicorn: &gunicorn
+    build: .
+    container_name: citadel-gunicorn
+    command: /commands/django-up-dev.sh
+    volumes:
+      - ./src:/src
+    env_file: ./src/.env
+    environment:
+      - DJANGO_ENVIRONMENT=prod
+    depends_on:
+      - db
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  nginx:
+    image: nginx:latest
+    container_name: citadel-nginx
+    volumes:
+      - ./src:/src
+      - ./config/nginx-prod:/etc/nginx/conf.d
+      - nginx-logs:/var/log/nginx/
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/letsencrypt
+    depends_on:
+      - gunicorn
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  certbot:
+    image: certbot/certbot
+    container_name: citadel-certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  telegraf:
+    image: "telegraf:latest"
+    container_name: citadel-telegraf
+    depends_on:
+      - nginx
+    volumes:
+      - ./config/telegraf-prod:/etc/telegraf/
+      - nginx-logs:/var/log/nginx/
+    networks:
+      citadel_net:
+
+    redis:
+    image: "redis:alpine"
+    container_name: citadel-redis
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  celeryworker:
+    <<: *gunicorn
+    ports: []
+    container_name: citadel-celeryworker
+    depends_on:
+      - redis
+    command: /commands/start-celery-worker.sh
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  celerybeat:
+    <<: *gunicorn
+    ports: []
+    container_name: citadel-celerybeat
+    depends_on:
+      - celeryworker
+    command: /commands/start-celery-beat.sh
+    restart: on-failure
+    networks:
+      citadel_net:
+
+
+networks:
+  citadel_net:
+    driver: bridge
+
+volumes:
+  nginx-logs:
+  pgdata:
+  certbot_certs:
+  certbot_www:

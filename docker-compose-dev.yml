@@ -1,0 +1,91 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:latest
+    container_name: ps14
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    env_file: ./src/.env
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  gunicorn: &gunicorn
+    build: .
+    container_name: gn14
+    command: /commands/django-up-dev.sh
+    volumes:
+      - ./src:/src
+    env_file: ./src/.env
+    environment:
+      - DJANGO_ENVIRONMENT=dev
+    depends_on:
+      - db
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  nginx:
+    image: nginx:latest
+    container_name: ng14
+    volumes:
+      - ./src:/src
+      - ./config/nginx:/etc/nginx/conf.d
+      - nginx-logs:/var/log/nginx/
+    depends_on:
+      - gunicorn
+    ports:
+      - "8014:80"
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  telegraf:
+    image: "telegraf:latest"
+    container_name: tl14
+    depends_on:
+      - nginx
+    volumes:
+      - ./config/telegraf:/etc/telegraf/
+      - nginx-logs:/var/log/nginx/
+    networks:
+      citadel_net:
+
+  redis:
+    image: "redis:alpine"
+    container_name: rd14
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  celeryworker:
+    <<: *gunicorn
+    ports: []
+    container_name: cl14
+    depends_on:
+      - redis
+    command: /commands/start-celery-worker.sh
+    restart: on-failure
+    networks:
+      citadel_net:
+
+  celerybeat:
+    <<: *gunicorn
+    ports: []
+    container_name: bt14
+    depends_on:
+      - celeryworker
+    command: /commands/start-celery-beat.sh
+    restart: on-failure
+    networks:
+      citadel_net:
+
+
+networks:
+  citadel_net:
+    driver: bridge
+
+volumes:
+  nginx-logs:
+  pg_data:

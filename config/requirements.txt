@@ -1,0 +1,40 @@
+# Django
+Django==2.2.*
+djangorestframework==3.*
+Markdown==3.*
+django-filter==2.*
+django-silk==3.*
+django-cors-headers==2.*
+django2-wysiwyg-redactor==1.*
+
+# For image field
+Pillow==5.*
+
+# Service
+envvars==0.3.*
+inflection==0.3.*
+gunicorn==19.9.*
+psycopg2-binary==2.*
+boto3==1.9.*
+django-storages==1.7.*
+ujson>=1.*
+dj-database-url==0.*
+
+# Dev data-generation
+django-seed
+
+# Cache
+python-memcached==1.*
+pylibmc==1.*
+
+# Scheduled tasks
+celery==4.3.*
+redis
+
+# Development
+ipython
+django-extensions
+model-mommy
+
+# DevOps
+fabric==2.4.0
